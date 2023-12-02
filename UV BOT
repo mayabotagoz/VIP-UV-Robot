@@ -1,0 +1,689 @@
+#include"LIS3DHTR.h"
+LIS3DHTR<TwoWire> lis;
+
+void setup() {
+Serial1.begin(115200);
+lis.begin(Wire1);
+if (!lis) {
+    Serial.println("ERROR");
+    while(1);
+  }
+  lis.setOutputDataRate(LIS3DHTR_DATARATE_25HZ); //Data output rate
+  lis.setFullScaleRange(LIS3DHTR_RANGE_2G); //Scale range set to 2g
+}
+
+void loop() {
+ float x_values, y_values, z_values;
+  x_values = lis.getAccelerationX();
+  y_values = lis.getAccelerationY();
+  z_values = lis.getAccelerationZ();
+  Serial.print("X: "); Serial.print(x_values);
+  Serial.print(" Y: "); Serial.print(y_values);
+ Serial.print(" Z: "); Serial.print(z_values);
+ Serial.print(" Sytem temp:"); Serial.println(lis.getTemperature());
+}
+
+Charging Circuit
+
+#include <UTFT.h>
+
+// Declare which fonts we will be using
+extern uint8_t BigFont[];
+UTFT myGLCD(ILI9481,38,39,40,41,42);// ElecFreaks TFT2.2SP Shield
+
+// constants won't change. They're used here to set pin numbers:
+const int Reedswitch = 11;     // the number of the pushbutton pin
+const int ledPin =  10;
+const int relay = 9; 
+const int statusled = 12; 
+
+// variables will change:
+int buttonState = 0;         // variable for reading the pushbutton status
+
+void setup() {
+   randomSeed(analogRead(0)); 
+// Setup the LCD
+  myGLCD.InitLCD();
+  myGLCD.setFont(BigFont);
+  digitalWrite(statusled, HIGH);
+  // initialize the LED pin as an output: 
+  pinMode(ledPin, OUTPUT);
+  pinMode(relay, OUTPUT);
+  // initialize the pushbutton pin as an input:
+  pinMode(Reedswitch, INPUT);
+}
+
+void loop() {
+// Clear the screen and draw the frame
+  //myGLCD.clrScr();
+
+  // read the state of the pushbutton value:
+  buttonState = digitalRead(Reedswitch);
+
+  // check if the pushbutton is pressed. If it is, the buttonState is HIGH:
+  if (buttonState == HIGH) {
+    // turn LED on:
+    digitalWrite(ledPin, HIGH);
+    digitalWrite(relay, HIGH);
+   myGLCD.clrScr();
+  myGLCD.setColor(255, 255, 255);
+  myGLCD.setBackColor(255, 0, 0);
+  myGLCD.print("UVBOT is Charging!", CENTER, 93);
+  } else {
+    digitalWrite(ledPin, LOW);
+    digitalWrite(relay, LOW);
+     myGLCD.setColor(255, 255, 255);
+  myGLCD.setBackColor(0, 0, 255);
+  myGLCD.print("Charging circuit is ON!", CENTER, 93);
+  delay(20);
+  }
+}
+
+Pir test Wio Terminal
+
+int led = D6;                // the pin that the LED is atteched to
+int sensor = D4;              // the pin that the sensor is atteched to
+int state = LOW;             // by default, no motion detected
+int val = 0;                 // variable to store the sensor status (value)
+
+void setup() {
+  pinMode(led, OUTPUT);      // initalize LED as an output
+  pinMode(sensor, INPUT);    // initialize sensor as an input
+  Serial.begin(115200);        // initialize serial
+}
+
+void loop(){
+  val = digitalRead(sensor);   // read sensor value
+  if (val == HIGH) {           // check if the sensor is HIGH
+    digitalWrite(led, HIGH);   // turn LED ON
+    delay(100);                // delay 100 milliseconds  
+    if (state == LOW) {
+      Serial.println("Motion detected!"); 
+      state = HIGH;       // update variable state to HIGH
+    }
+  } 
+  else {
+      digitalWrite(led, LOW); // turn LED OFF
+      delay(200);             // delay 200 milliseconds  
+      if (state == HIGH){
+        Serial.println("Motion stopped!");
+        state = LOW;       // update variable state to LOW
+    }
+  }
+}
+
+Ros Serial Motor Control 
+
+#if (ARDUINO >= 100)
+#include <Arduino.h>
+#else
+#include <WProgram.h>
+#endif
+
+#include <ros.h>
+#include <geometry_msgs/Twist.h>
+// Pin variables for motors.
+const int right_back = 5;
+const int right_front = 6;
+const int left_back = 9;
+const int left_front = 10;
+
+ros::NodeHandle  nh;
+
+void MoveFwd() {
+  digitalWrite(right_back, HIGH);
+  digitalWrite(left_back, HIGH);
+  analogWrite(right_front,LOW);
+  analogWrite(left_front, LOW);
+}
+
+void MoveStop() {
+  digitalWrite(right_back, LOW);
+  digitalWrite(left_back, LOW);
+  analogWrite(right_front,LOW);
+  analogWrite(left_front, LOW);
+}
+void MoveLeft() {
+  digitalWrite(right_back, HIGH);
+  digitalWrite(left_back, LOW);
+  analogWrite(right_front,LOW);
+  analogWrite(left_front, HIGH);
+}
+void MoveRight() {
+  digitalWrite(right_back, LOW);
+  digitalWrite(left_back, HIGH);
+  analogWrite(right_front,HIGH);
+  analogWrite(left_front, LOW);
+}
+void MoveBack() {
+  digitalWrite(right_back, LOW);
+  digitalWrite(left_back, LOW);
+  analogWrite(right_front,HIGH);
+  analogWrite(left_front, HIGH);
+}
+
+void cmd_vel_cb(const geometry_msgs::Twist & msg) {
+  // Read the message. Act accordingly.
+  // We only care about the linear x, and the rotational z.
+  const float x = msg.linear.x;
+  const float z_rotation = msg.angular.z;
+
+  // Decide on the morot state we need, according to command.
+  if (x > 0 && z_rotation == 0) {
+    MoveFwd();
+  }
+  else if (x == 0 && z_rotation == 1) {
+    MoveRight();
+  }
+else if (x == 0 && z_rotation < 0) {
+    MoveLeft();
+  }
+else if (x < 0 && z_rotation == 0) {
+    MoveBack();
+  }
+else{
+    MoveStop();
+  }
+}
+ros::Subscriber<geometry_msgs::Twist> sub("cmd_vel", cmd_vel_cb);
+void setup() {
+  pinMode(right_back, OUTPUT);    
+  pinMode(left_back, OUTPUT);
+  pinMode(right_front, OUTPUT);
+  pinMode(left_front, OUTPUT); 
+  nh.initNode();
+  nh.subscribe(sub);
+}
+
+void loop() {
+  nh.spinOnce();
+  delay(1);
+}
+
+Sensor UV Test
+
+//input this code to test UV sensor
+void setup() {
+    Serial.begin(115200);
+    pinMode(A8, INPUT);
+}
+void loop() {
+    int uvsensor = analogRead(A8);
+    Serial.print("UV intensity: ");
+    Serial.println(uvsensor);
+    delay(50);
+}
+
+Serial Test
+
+void setup() {
+RTL8720D.begin(115200);
+Serial.begin(115200);
+
+}
+
+void loop() {
+ if (RTL8720D.available())
+            {
+
+                int inbyte = RTL8720D.read();
+
+                Serial.write(inbyte)               
+
+}
+}
+
+Wifi Realtek Development Board 
+
+#include <WiFi.h>
+// Current time
+unsigned long currentTime = millis();
+// Previous time
+unsigned long previousTime = 0; 
+// Define timeout time in milliseconds (example: 2000ms = 2s)
+const long timeoutTime = 2000;
+String header;
+
+// Auxiliar variables to store the current output state
+String output5State = "off";
+String output4State = "off";
+const int output5 =5;
+const int output4 = 4;
+char ssid[] = "UV bot";  //Set the AP's SSID
+char pass[] = "12345678";     //Set the AP's password
+char channel[] = "1";         //Set the AP's channel
+int status = WL_IDLE_STATUS;  // the Wifi radio's status
+WiFiServer server(80);
+void printWifiStatus() {
+    // print the SSID of the network you're attached to:
+   // Serial.println();
+   // Serial.print("SSID: ");
+   // Serial.println(WiFi.SSID());
+
+    // print your WiFi shield's IP address:
+    IPAddress ip = WiFi.localIP();
+    //Serial.print("IP Address: ");
+   // Serial.println(ip);
+}
+void setup() {
+    //Initialize serial and wait for port to open:
+    Serial.begin(115200);
+    Serial1.begin(115200);
+    pinMode(output5,OUTPUT);
+    pinMode(output4,OUTPUT);
+    while (!Serial) {
+        ; // wait for serial port to connect. Needed for native USB port only
+    }
+
+    // check for the presence of the shield:
+    if (WiFi.status() == WL_NO_SHIELD) {
+        //Serial.println("WiFi shield not present");
+        while (true);
+    }
+    String fv = WiFi.firmwareVersion();
+    if (fv != "1.0.0") {
+       // Serial.println("Please upgrade the firmware");
+    }
+
+    // attempt to start AP:
+    while (status != WL_CONNECTED) {
+        //Serial.print("Attempting to start AP with SSID: ");
+        //Serial.println(ssid);
+        status = WiFi.apbegin(ssid, pass, channel);
+        delay(10000);
+    }
+
+    //AP MODE already started:
+   // Serial.println("AP mode already started");
+    //Serial.println();
+   server.begin();
+   printWifiStatus();
+}
+
+void loop(){
+  WiFiClient client = server.available();   // Listen for incoming clients
+
+if (client) { // If a new client connects,
+ Serial.println("New Client."); // print a message out in the serial port
+ String currentLine = ""; // make a String to hold incoming data from the client
+ while (client.connected()) { // loop while the client's connected
+ if (client.available()) { // if there's bytes to read from the client,
+  char c = client.read(); // read a byte, then
+  Serial.write(c); // print it out the serial monitor
+  header += c;
+  if (c == '\n') { // if the byte is a newline character
+   // if the current line is blank, you got two newline characters in a row.
+   // that's the end of the client HTTP request, so send a response:
+   if (currentLine.length() == 0) {
+    // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+    // and a content-type so the client knows what's coming, then a blank line:
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-type:text/html");
+    client.println("Connection: close");
+    client.println();
+    // turns the GPIOs on and off
+if (header.indexOf("GET /5/on") >= 0) {
+  //Serial.println("GPIO 5 on");
+  output5State = "on";
+  digitalWrite(output5, HIGH);
+  //Serial.print("5");
+} else if (header.indexOf("GET /5/off") >= 0) {
+ // Serial.println("GPIO 5 off");
+  output5State = "off";
+  Serial.print("7");
+  digitalWrite(output5, LOW);
+} else if (header.indexOf("GET /4/on") >= 0) {
+  //Serial.println("GPIO 4 on");
+  output4State = "on";
+  digitalWrite(output4, HIGH);
+} else if (header.indexOf("GET /4/off") >= 0) {
+  //Serial.println("GPIO 4 off");
+  output4State = "off";
+  digitalWrite(output4, LOW);
+}
+
+ client.println("<!DOCTYPE html><html>");
+            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            client.println("<link rel=\"icon\" href=\"data:,\">");
+            // CSS to style the on/off buttons 
+            // Feel free to change the background-color and font-size attributes to fit your preferences
+            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+            client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
+            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+            client.println(".button2 {background-color: #77878A;}</style></head>");
+client.println("<h1>UV BoT</h1>");
+ client.println("<p>UV Light status " + output5State + "</p>");
+            // If the output5State is off, it displays the ON button       
+            if (output5State=="off") {
+              client.println("<p><a href=\"/5/on\"><button class=\"button\">ON</button></a></p>");
+            } 
+            else {
+              client.println("<p><a href=\"/5/off\"><button class=\"button button2\">OFF</button></a></p>");
+            }
+             client.println();
+             break;
+   }
+     else { // if you got a newline, then clear currentLine
+            currentLine = "";
+          }
+        } else if (c != '\r') {  // if you got anything else but a carriage return character,
+          currentLine += c;      // add it to the end of the currentLine
+        }
+      }
+    }
+    // Clear the header variable
+    header = "";
+    // Close the connection
+    client.stop();
+   // Serial.println("Client disconnected.");
+   // Serial.println("");
+  }
+}
+
+Wio Terminal Code
+
+#include <SPI.h>
+
+#define TFT_GREY 0x5AEB
+#include"LIS3DHTR.h"
+LIS3DHTR<TwoWire> lis;
+#include"TFT_eSPI.h"
+#include"Free_Fonts.h" //include the header file
+TFT_eSPI tft;
+uint32_t targetTime = 0;                    // for next 1 second timeout
+
+static uint8_t conv2d(const char* p); // Forward declaration needed for IDE 1.6.x
+
+uint8_t hh = conv2d(__TIME__), mm = conv2d(__TIME__ + 3), ss = conv2d(__TIME__ + 6); // Get H, M, S from compile time
+
+byte omm = 99, oss = 99;
+byte xcolon = 0, xsecs = 0;
+unsigned int colour = 0;
+
+void setup(void) {
+  pinMode(WIO_BUZZER, OUTPUT);
+    pinMode(A8, INPUT);
+    pinMode(D4,OUTPUT);
+  tft.begin();
+  tft.setRotation(3);
+  tft.fillScreen(TFT_BLACK);
+   tft.setTextSize(1);
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+
+    targetTime = millis() + 1000;
+  Serial1.begin(115200);
+  RTL8720D.begin(115200);
+  lis.begin(Wire1); 
+  if (!lis) {
+    Serial.println("ERROR");
+    while(1);
+  }
+  lis.setOutputDataRate(LIS3DHTR_DATARATE_25HZ); //Data output rate
+  lis.setFullScaleRange(LIS3DHTR_RANGE_2G); //Scale range set to 2g
+}
+void loop() {
+  float x_values, y_values, z_values;
+  x_values = lis.getAccelerationX();
+  y_values = lis.getAccelerationY();
+  z_values = lis.getAccelerationZ();
+   int uvsensor = analogRead(A8)
+ if (RTL8720D.available())
+            {
+
+                int inbyte = RTL8720D.read();
+
+                if (inbyte>4) 
+                digitalWrite(D4,HIGH);
+                Serial.print("inbyte:"); Serial.write(inbyte);
+                tft.drawString("   Caution! UV lamp is On      ",30,180 );
+                }
+                else if(inbyte<4)
+                {
+                  digitalWrite(D4,LOW);
+              Serial.print("inbyte:");Serial.print(inbyte);
+              tft.drawString("         UV lamp is Off                        ",30,180 ); 
+              }
+                else {
+                }
+                }
+ // Serial.print("X: "); Serial.print(x_values);
+ // Serial.print(" Y: "); Serial.print(y_values);
+ // Serial.print(" Z: "); Serial.print(z_values);
+  //Serial.println();
+  if (x_values<0.5)
+  {
+     Serial.print("The Bot is down...stopping systems! ");
+     Serial.print("temp:"); Serial.println(lis.getTemperature());
+     RTL8720D.write("1");
+     analogWrite(WIO_BUZZER, 128);
+      tft.setFreeFont(FS12);
+     tft.drawString("The Bot is down",70,140 );
+     delay(50);
+     Serial.print("uv value"); Serial.println(uvsensor);
+     if (uvsensor> 400){
+    Serial.print("UV Lamp is working: "); 
+    tft.drawString("   Caution! UV lamp is On      ",30,180 );
+   }
+   else{
+    tft.drawString("         UV lamp is Off                        ",30,180 ); 
+   }   
+  }
+  else
+  {Serial.print("temp:"); Serial.println(lis.getTemperature());
+   tft.drawString("     UV Robot      ",70,140 ); 
+   RTL8720D.write("0");
+   analogWrite(WIO_BUZZER, 0);
+   Serial.print("uv value"); Serial.println(uvsensor);
+   if (uvsensor> 400){
+    Serial.print("UV Lamp is working: ");
+    tft.drawString("   Caution! UV lamp is On     ",30,180 );
+   }
+   else{
+    tft.drawString("         UV lamp is Off                        ",30,180 ); 
+   }
+  }
+  delay(50);
+   if (targetTime < millis()) {
+        // Set next update for 1 second later
+        targetTime = millis() + 1000; 
+
+        // Adjust the time values by adding 1 second
+        ss++;              // Advance second
+        if (ss == 60) {    // Check for roll-over
+            ss = 0;          // Reset seconds to zero
+            omm = mm;        // Save last minute time for display update
+            mm++;            // Advance minute
+            if (mm > 59) {   // Check for roll-over
+                mm = 0;
+                hh++;          // Advance hour
+                if (hh > 23) { // Check for 24hr roll-over (could roll-over on 13)
+                    hh = 0;      // 0 for 24 hour clock, set to 1 for 12 hour clock
+                }
+            }
+        }
+        // Update digital time
+        int xpos = 0;
+        int ypos = 20; // Top left corner ot clock text, about half way down
+        int ysecs = ypos + 24;
+
+        if (omm != mm) { // Redraw hours and minutes time every minute
+            omm = mm;
+            // Draw hours and minutes
+            if (hh < 10) {
+                xpos += tft.drawChar('0', xpos, ypos, 8);    // Add hours leading zero for 24 hr clock
+            }
+            xpos += tft.drawNumber(hh, xpos, ypos, 8);             // Draw hours
+            xcolon = xpos; // Save colon coord for later to flash on/off later
+            xpos += tft.drawChar(':', xpos, ypos - 8, 8);
+            if (mm < 10) {
+                xpos += tft.drawChar('0', xpos, ypos, 8);    // Add minutes leading zero
+            }
+            xpos += tft.drawNumber(mm, xpos, ypos, 8);             // Draw minutes
+            xsecs = xpos; // Sae seconds 'x' position for later display updates
+        }
+        if (oss != ss) { // Redraw seconds time every second
+            oss = ss;
+            xpos = xsecs;
+
+            if (ss % 2) { // Flash the colons on/off
+                tft.setTextColor(0x39C4, TFT_BLACK);        // Set colour to grey to dim colon
+                tft.drawChar(':', xcolon, ypos - 8, 8);     // Hour:minute colon
+                xpos += tft.drawChar(':', xsecs, ysecs, 6); // Seconds colon
+                tft.setTextColor(TFT_YELLOW, TFT_BLACK);    // Set colour back to yellow
+            } else {
+                tft.drawChar(':', xcolon, ypos - 8, 8);     // Hour:minute colon
+                xpos += tft.drawChar(':', xsecs, ysecs, 6); // Seconds colon
+            }
+
+            //Draw seconds
+            if (ss < 10) {
+                xpos += tft.drawChar('0', xpos, ysecs, 6);    // Add leading zero
+            }
+            tft.drawNumber(ss, xpos, ysecs, 6);                     // Draw seconds
+        }
+    }
+}
+static uint8_t conv2d(const char* p) {
+    uint8_t v = 0;
+    if ('0' <= *p && *p <= '9') {
+        v = *p - '0';
+    }
+    return 10 * v + *++p - '0';
+}
+
+ros Autonomous Setup:
+
+import numpy as np
+import math
+import matplotlib.pyplot as plt
+import rospy
+from rospy.numpy_msg import numpy_msg
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist
+from controller import PID
+class WallFollower:
+# Import ROS parameters from the "params.yaml" file.
+# Access these variables in class functions with self:
+# i.e. self.CONSTANT
+SCAN_TOPIC = "/scan"
+DRIVE_TOPIC = "cmd_vel"
+SIDE = -1 # -1 right is and +1 is left
+VELOCITY = 1.6
+DESIRED_DISTANCE = 0.5
+def __init__(self):
+# Create a node that
+#   Subscribes to the laser scan topic,
+#   Publishes to  drive topic - to move the vehicle.
+# Initialize subscriber to laser scan.
+rospy.Subscriber(self.SCAN_TOPIC, LaserScan, self.LaserCb)
+# Initialize a publisher of drive commands.
+self.drive_pub = rospy.Publisher(self.DRIVE_TOPIC, Twist, queue_size = 10)
+# Variables to keep track of drive commands being sent to robot.
+self.seq_id = 0
+# Class variables for following.
+self.side_angle_window_fwd_ = math.pi*0.1
+self.side_angle_window_bwd_ = math.pi - math.pi*0.3
+self.point_buffer_x_ = np.array([])
+self.point_buffer_y_ = np.array([])
+self.num_readings_in_buffer_ = 0
+self.num_readings_for_fit_ = 2
+self.reject_dist = 0.7
+self.steer_cmd = 0
+self.vel_cmd = self.VELOCITY
+self.pid = PID()
+def GetLocalSideWallCoords(self, ranges, angle_min, angle_max, angle_step):
+# Slice out the interesting samples from our scan. pi/2 radians from pi/4 to (pi - pi/4) radians for the right side.
+positive_start_angle = self.side_angle_window_fwd_
+positive_end_angle   = self.side_angle_window_bwd_
+if self.SIDE == -1: #"right":
+start_angle = -positive_start_angle
+end_angle   = -positive_end_angle
+elif self.SIDE == 1: #"left":
+start_angle = positive_start_angle
+end_angle   = positive_end_angle
+start_ix_ = int((-angle_min +start_angle)/angle_step)
+end_ix_ = int((-angle_min +end_angle)/angle_step)
+start_ix = min(start_ix_,end_ix_)
+end_ix = max(start_ix_,end_ix_)
+side_ranges = ranges[min(start_ix,end_ix):max(start_ix, end_ix)]
+x_values = np.array([ranges[i]*math.cos(angle_min+i*angle_step) if i < len(ranges) else  ranges[(i - len(ranges))]*math.cos(angle_min+(i - len(ranges))*angle_step) for i in range(start_ix, end_ix) ])
+y_values = np.array([ranges[i]*math.sin(angle_min+i*angle_step) if i < len(ranges) else ranges[i - len(ranges)]*math.sin(angle_min+(i - len(ranges))*angle_step) for i in range(start_ix, end_ix)])
+# Check that the values for the points are within 1 meter from each other. Discard any point that is not within one meter form the one before it.
+out_x = []
+out_y = []
+for ix in range(0, len(x_values)):
+new_point = (x_values[ix],y_values[ix])
+# This conditional handles points with infinite value.
+if  side_ranges[ix] < 2.5 and side_ranges[ix] > 0 and abs(new_point[1]) < 7000 and abs(new_point[0]) < 7000 :
+out_x.append(new_point[0])
+out_y.append(new_point[1])
+return np.array(out_x), np.array(out_y)
+def LaserCb(self, scan_data):
+# This function is called every time we get a laser scan.
+# This is the plan:
+# * Get scan data.
+# * Convert it to x,y coordinates in the local frame of the robot.
+# * Find a least squares - best fit line through those points with numpy.
+#   Consider using data from multiple scans in one least-squares fit cycle.
+#   This is a line equation, with respect to the car at (0,0), with the x axis being the heading.
+#   Get vector theta for the line, and theta_0 as the y intersection.
+# * Find the distance from the line to the origin with ( theta_T dot [[0],[0]] + theta_0 ) / (norm theta)
+# TLDR, We have a vector theta for the line we have found, and a distance to that wall.
+# TODO(yorai): Handle erroneous scan values. If one is too big, or too small, use past value.
+# Do not do this for too many in a row, maybe just throw scan away if too many corrections.
+angle_step = scan_data.angle_increment
+angle_min = scan_data.angle_min
+angle_max = scan_data.angle_max
+ranges = scan_data.ranges
+# Get data for side ranges. Add to buffer.
+wall_coords_local = self.GetLocalSideWallCoords(ranges, angle_min, angle_max, angle_step)
+#######
+#Find mean and throw out everything that is 1 meter away from mean distance, no outliers.
+# If one differs by more than a meter from the previous one, gets thrown out from both x and y. Distnaces as we go along vector of points.
+# but print the things first.
+#######
+self.point_buffer_x_ = np.append(self.point_buffer_x_, wall_coords_local[0])
+self.point_buffer_y_ = np.append(self.point_buffer_y_, wall_coords_local[1])
+self.num_readings_in_buffer_ +=1
+# If we have enough data, then find line of best fit.
+if self.num_readings_in_buffer_ >= self.num_readings_for_fit_:
+# Find line of best fit.
+# self.point_buffer_x_ = np.array([0, 1, 2, 3])
+# self.point_buffer_y_ = np.array([-1, 0.2, 0.9, 2.1])
+A = np.vstack([self.point_buffer_x_, np.ones(len(self.point_buffer_x_))]).T
+m, c = np.linalg.lstsq(A, self.point_buffer_y_, rcond=0.001)[0]
+# Find angle from heading to wall.
+# Vector of wall. Call wall direction vector theta.
+th = np.array([[m],[1]])
+th /= np.linalg.norm(th)
+# Scalar to define the (hyper) plane
+th_0 = c
+# Distance to wall is (th.T dot x_0 + th_0)/(norm(th))
+dist_to_wall = abs(c/np.linalg.norm(th))
+# Angle between heading and wall.
+angle_to_wall = math.atan2(m, 1)
+# Clear scan buffers.
+self.point_buffer_x_=np.array([])
+self.point_buffer_y_=np.array([])
+self.num_readings_in_buffer_ = 0
+# Simple Proportional controller.
+# Feeding the current angle ERROR(with target 0), and the distance ERROR to wall. Desired error to be 0.
+print("ANGLE", angle_to_wall, "DIST", dist_to_wall)
+steer = self.pid.GetControl(0.0 - angle_to_wall, self.DESIRED_DISTANCE - dist_to_wall, self.SIDE)
+# Publish control to /drive topic.
+drive_msg = Twist()
+# drive_msg.header.seq = self.seq_id
+# self.seq_id += 1
+# Populate the command itself.
+drive_msg.linear.x = self.VELOCITY
+drive_msg.angular.z = steer
+# drive_msg.drive.steering_angle = steer
+# drive_msg.drive.steering_angle_velocity = 0.1
+# drive_msg.drive.speed = self.VELOCITY
+# drive_msg.drive.acceleration = 1
+# drive_msg.drive.acceleration = 0.5
+self.drive_pub.publish(drive_msg)
+if __name__ == "__main__":
+rospy.init_node('wall_follower')
+wall_follower = WallFollower()
+rospy.spin()
